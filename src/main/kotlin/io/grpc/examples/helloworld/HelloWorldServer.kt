@@ -56,36 +56,31 @@ class HelloWorldServer(val port: Int) {
 
     private class HelloWorldService : GreeterGrpcKt.GreeterCoroutineImplBase() {
         val sleeper = SleepingClient()
-        val pool = Executors.newFixedThreadPool(20)
-        override suspend fun sayHello(request: HelloRequest): HelloReply = coroutineScope {
+        val pool = Executors.newFixedThreadPool(10)
 
-            getData(request)
+        //        val pool = Executors.newFixedThreadPool(20)
+        override suspend fun sayHello(request: HelloRequest): HelloReply {
+
+            return getData(request)
 //
 //            channelFlow {
 //                launch { send(response.await()) }
 //             }.filterNotNull().first()
-
         }
 
-        suspend fun getData(request: HelloRequest): HelloReply = coroutineScope {
-            pool.run {
-                launch {
-                    Thread.sleep(2000)
-//                    delay(2000)
-                    logger.info { "log after 2000ms" }
-                }
-            }
+        suspend fun saveData(request: HelloRequest, data: String): String {
+            sleeper.getData(1500)
+            logger.info { "Saved data: '$data' with timeout ${request.sleep}" }
+            return data
+        }
 
-
-//            CancellableContext withCancellation = Context.current().withCancellation();
-//            try {
-//                withCancellation.run(() -> {
-//                    stub.streamFooUpdates(...);
-//                    Thread.sleep(10000);
-//                    withCancellation.cancel(null);
-//                });
-//            } finally {
-//                withCancellation.cancel(null);
+        suspend fun getData(request: HelloRequest): HelloReply {
+//            pool.run {
+//                launch {
+//                    Thread.sleep(2000)
+////                    delay(2000)
+//                    logger.info { "log after 2000ms" }
+//                }
 //            }
 
 
@@ -95,31 +90,33 @@ class HelloWorldServer(val port: Int) {
 //                call.respond(HttpStatusCode.BadRequest, ErrorResponse("reason of failure"))
 //                call.respond(HttpStatusCode.BadRequest, "text error")
 
-            val clientData = async {
-                val data = sleeper.getData(request.sleep)
-                logger.info { "obtained data: '$data' with timeout ${request.sleep}" }
+            val clientData =
+                withContext(NonCancellable) {
+//                    async {
+                    val data = sleeper.getData(request.sleep)
+                    logger.info { "Canceled: ${Context.current().isCancelled} obtained data: '$data' with timeout ${request.sleep}" }//                    }.await()
+//                    pool.execute { launch { withContext(NonCancellable) {saveData(request, data) }} }
+                    data
+                }
 
-//                channelFlow {
-//                        launch {send(data)}
-//                    launch { send(sleeper.getData(500)) }
+//            val defaultData =
+//                async {
+//                    delay(600)
+//                    "default value for ${request.sleep}"
 //                }
+//
+//            val result = channelFlow {
+//                launch { send(clientData.await()) }
+//                launch { send(defaultData.await()) }
+//            }.filterNotNull().first()
 
-                data
-            }
+            val result = clientData
 
-            val defaultData = async {
-                delay(600)
-                "default value for ${request.sleep}"
-            }
 
-            val result = channelFlow {
-                launch { send(clientData.await()) }
-                launch { send(defaultData.await()) }
-            }.filterNotNull().first()
 
-            logger.info { "finished responding ${request.message} with $result adn timeout ${request.sleep}" }
+            logger.info { "Canceled: ${Context.current().isCancelled} finished responding ${request.message} with $result adn timeout ${request.sleep}" }
 
-            helloReply { message = result }
+            return helloReply { message = result }
         }
     }
 }

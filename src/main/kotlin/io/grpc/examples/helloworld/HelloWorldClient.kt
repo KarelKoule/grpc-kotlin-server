@@ -20,9 +20,8 @@ import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import io.grpc.StatusException
 import io.grpc.examples.helloworld.GreeterGrpcKt.GreeterCoroutineStub
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.asExecutor
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import mu.KotlinLogging
 import java.io.Closeable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -30,13 +29,14 @@ import java.util.concurrent.TimeUnit
 class HelloWorldClient(val channel: ManagedChannel) : Closeable {
     private val stub: GreeterCoroutineStub = GreeterCoroutineStub(channel)
 
-    fun greet(s: String, sleep: Long = 0) = runBlocking {
-        val request = helloRequest { message = s; this.sleep=sleep }
+    suspend fun greet(s: String, sleep: Long = 0) {
+        val request = helloRequest { message = s; this.sleep = sleep }
         try {
-            val response = stub.withDeadlineAfter(400, TimeUnit.MILLISECONDS).sayHello(request)
-            println("Greeter client received: ${response.message}")
+            logger.info("Start greeting: ${request.message} and sleep: ${request.sleep}")
+            val response = stub.withDeadlineAfter(2000, TimeUnit.MILLISECONDS).sayHello(request)
+            logger.info("Greeter client received: ${response.message}")
         } catch (e: StatusException) {
-            println("RPC failed: ${e.status}")
+            logger.info("RPC failed: ${request.message} and sleep: ${request.sleep}")
         }
     }
 
@@ -61,8 +61,23 @@ fun main(args: Array<String>) {
         HelloWorldClient(
             builder.executor(dispatcher.asExecutor()).build()
         ).use {
-            val user = args.singleOrNull() ?: "world"
-            it.greet(user, 1000)
+            runBlocking(Dispatchers.IO) {
+                async {it.greet("very long", 6000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("long", 1000)}
+                async {it.greet("quick", 0)}
+                async {it.greet("quick", 10)}
+                async {it.greet("quick", 100)}
+                async {it.greet("longer", 2000)}
+            }
         }
     }
 }
